@@ -1,0 +1,10 @@
+# 压缩包
+*.zip
+
+# 图片输出
+*.png
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
