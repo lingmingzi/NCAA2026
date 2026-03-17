@@ -776,10 +776,21 @@ print("\n" + "=" * 65)
 n_ens = sum(len(s) for s in fold_snapshots)
 print(f"生成提交文件（{n_ens} 模型集成 × 校准 × 对称 TTA）...")
 
-sample_sub = pd.read_csv(DATA_DIR / 'SampleSubmissionStage1.csv')
+# 2026 数据更新后, 优先使用 Stage2 样例提交, 不存在则回退 Stage1
+stage2_path = DATA_DIR / 'SampleSubmissionStage2.csv'
+stage1_path = DATA_DIR / 'SampleSubmissionStage1.csv'
+sample_path = stage2_path if stage2_path.exists() else stage1_path
+sample_sub = pd.read_csv(sample_path)
+print(f"使用样例提交: {sample_path.name}")
+required_cols = {'ID', 'Pred'}
+missing_cols = required_cols - set(sample_sub.columns)
+assert not missing_cols, f"样例提交缺少列: {sorted(missing_cols)}"
+id_ok = sample_sub['ID'].astype(str).str.match(r'^\d{4}_\d{4}_\d{4}$').all()
+assert id_ok, "样例提交 ID 格式异常, 期望 SSSS_XXXX_YYYY"
 sub_df     = sample_sub.copy()
 sub_df[['Season', 'TeamA', 'TeamB']] = (
     sub_df['ID'].str.split('_', expand=True).astype(int))
+assert (sub_df['TeamA'] < sub_df['TeamB']).all(), "样例提交 TeamID 顺序异常"
 sub_df['Gender'] = np.where(sub_df['TeamA'] < 3000, 'M', 'W')
 
 
@@ -866,7 +877,8 @@ for (season, gender), grp in sub_df.groupby(['Season', 'Gender']):
 
 sub_final = pd.concat(all_sub).sort_index().reset_index(drop=True)
 sub_final['Pred'] = sub_final['Pred'].clip(0.01, 0.99).round(6)
-assert len(sub_final) == 519144, f"行数错误: {len(sub_final)}"
+assert len(sub_final) == len(sample_sub), (
+    f"行数错误: {len(sub_final)} != {len(sample_sub)}")
 
 out_path = DATA_DIR / 'submission_dl.csv'
 sub_final.to_csv(out_path, index=False)
